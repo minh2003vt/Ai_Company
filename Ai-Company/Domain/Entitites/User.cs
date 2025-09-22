@@ -43,11 +43,20 @@ namespace Domain.Entitites
         // ===== Security & Login Tracking =====
         public DateTime? LastLoginAt { get; set; }         // lần login gần nhất
         public int FailedLoginAttempts { get; set; } = 0;  // số lần login sai liên tục
-        public bool IsBlocked { get; set; } = false;       // có bị block hay không
         public DateTime? BlockedUntil { get; set; }        // nếu block tạm thời
+        public bool IsBlocked { get; set; } = false;       // trạng thái bị khóa
 
-        public ICollection<LoginLogs> LoginLog { get; set; } = new List<LoginLogs>();
-        public ICollection<UserCompany> UserCompanies { get; set; } = new List<UserCompany>();
+        // AI Configuration
+        public Guid? AIConfigureId { get; set; }
+        public virtual AI_Configure AIConfigure { get; set; }
+
+        // Department
+        public Guid? DepartmentId { get; set; }
+        public virtual Department Department { get; set; }
+
+        public virtual ICollection<LoginLogs> LoginLog { get; set; } = new List<LoginLogs>();
+        public virtual ICollection<UserCompany> UserCompanies { get; set; } = new List<UserCompany>();
+        public virtual ICollection<ChatSession> ChatSessions { get; set; } = new List<ChatSession>();
 
     }
 }

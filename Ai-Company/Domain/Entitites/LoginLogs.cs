@@ -15,7 +15,7 @@ namespace Domain.Entitites
         public Guid Id { get; set; }
 
         public Guid UserId { get; set; }
-        public User User { get; set; }
+        public virtual User User { get; set; }
 
         public DateTime LoginTime { get; set; } = DateTime.UtcNow;
 
@@ -30,7 +30,7 @@ namespace Domain.Entitites
 
         [MaxLength(50)]
         public string LoginMethod { get; set; }
-        public ICollection<ActionLog> Actions { get; set; } = new List<ActionLog>();
+        public virtual ICollection<ActionLog> Actions { get; set; } = new List<ActionLog>();
 
 
     }

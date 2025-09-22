@@ -17,7 +17,7 @@ namespace Domain.Entitites
         [Required, MaxLength(100)]
         public string Name { get; set; }
         public Guid CompanyId { get; set; }
-        public Company Company { get; set; }
-        public ICollection<User> Users { get; set; } = new List<User>();
+        public virtual Company Company { get; set; }
+        public virtual ICollection<User> Users { get; set; } = new List<User>();
     }
 }

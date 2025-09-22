@@ -24,7 +24,7 @@ namespace Domain.Entitites
         [Required]
         [MaxLength(100)]
         public string Description { get; set; }
-        public ICollection<Department> Departments { get; set; } = new List<Department>();
-        public ICollection<UserCompany> UserCompanies { get; set; } = new List<UserCompany>();
+        public virtual ICollection<Department> Departments { get; set; } = new List<Department>();
+        public virtual ICollection<UserCompany> UserCompanies { get; set; } = new List<UserCompany>();
     }
 }

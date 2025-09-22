@@ -13,12 +13,12 @@ namespace Domain.Entitites
         public Guid UserId { get; set; }
         [Required]
         public Guid DepartmentId { get; set; }
-        public User User { get; set; }
-        public Department Department { get; set; }
+        public virtual User User { get; set; }
+        public virtual Department Department { get; set; }
         [Required]
         public Guid AIId { get; set; }
         [Required]
-        public AI_Configure AI_Configure { get; set; }
+        public virtual AI_Configure AI_Configure { get; set; }
 
     }
 }
