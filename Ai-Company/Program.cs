@@ -125,9 +125,15 @@ builder.Services.AddSingleton(provider =>
     var firebaseKeyPath = config["Firebase:CredentialPath"] ?? config["FIREBASE__CREDENTIAL_PATH"];
     var projectId = config["Firebase:ProjectId"] ?? config["FIREBASE__PROJECT_ID"];
 
-    if (string.IsNullOrEmpty(firebaseKeyPath) || string.IsNullOrEmpty(projectId))
+    if (string.IsNullOrEmpty(firebaseKeyPath))
     {
-        var errorMsg = "Firebase configuration is missing! Please set FIREBASE__CREDENTIAL_PATH and FIREBASE__PROJECT_ID environment variables or Firebase:CredentialPath and Firebase:ProjectId in appsettings.json";
+        var errorMsg = "Firebase configuration is missing! Please set FIREBASE__CREDENTIAL_PATH";
+        Console.WriteLine($"ERROR: {errorMsg}");
+        throw new InvalidOperationException(errorMsg);
+    }
+    if ( string.IsNullOrEmpty(projectId))
+    {
+        var errorMsg = "Firebase configuration is missing! Please set FIREBASE__PROJECT_ID";
         Console.WriteLine($"ERROR: {errorMsg}");
         throw new InvalidOperationException(errorMsg);
     }
