@@ -76,10 +76,34 @@ builder.Services.AddCors(options =>
     });
 });
 
-// DbContext
+// DbContext - Build connection string from environment variables if not set
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+if (string.IsNullOrWhiteSpace(connectionString))
+{
+    // Build from individual environment variables (Render/Docker compatible)
+    // ASP.NET Core automatically maps env vars: POSTGRES_HOST -> Configuration["POSTGRES_HOST"]
+    var dbHost = builder.Configuration["POSTGRES_HOST"];
+    var dbPort = builder.Configuration["POSTGRES_PORT"] ?? "5432";
+    var dbName = builder.Configuration["POSTGRES_DB"];
+    var dbUser = builder.Configuration["POSTGRES_USER"];
+    var dbPassword = builder.Configuration["POSTGRES_PASSWORD"];
+    
+    if (!string.IsNullOrWhiteSpace(dbHost) && !string.IsNullOrWhiteSpace(dbName))
+    {
+        connectionString = $"Host={dbHost};Port={dbPort};Database={dbName};Username={dbUser};Password={dbPassword}";
+    }
+}
+
 builder.Services.AddDbContext<AppDbContext>(options =>
 {
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"));
+    if (!string.IsNullOrWhiteSpace(connectionString))
+    {
+        options.UseNpgsql(connectionString);
+    }
+    else
+    {
+        throw new InvalidOperationException("Database connection string is not configured. Please set ConnectionStrings:DefaultConnection or individual POSTGRES_* environment variables.");
+    }
 });
 
 // 🔹 Firebase Initialization
