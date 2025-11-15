@@ -190,10 +190,41 @@ namespace Application.Helper
             {
                 // Gọi embedding service trực tiếp từ configuration - không cần ONNX nữa
                 var tokenizerBaseUrl = _configuration["Tokenizer:BaseUrl"] ?? _configuration["TOKENIZER__BASE_URL"] ?? "http://localhost:8000";
+                
+                // Đảm bảo URL là absolute URL (có http:// hoặc https://)
+                if (string.IsNullOrWhiteSpace(tokenizerBaseUrl))
+                {
+                    throw new InvalidOperationException("Tokenizer BaseUrl is not configured");
+                }
+                
+                // Normalize URL - đảm bảo có scheme
+                if (!tokenizerBaseUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) && 
+                    !tokenizerBaseUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                {
+                    tokenizerBaseUrl = "https://" + tokenizerBaseUrl;
+                }
+                
                 var embedUrl = $"{tokenizerBaseUrl.TrimEnd('/')}/embed";
+                Console.WriteLine($"[QdrantHelper] Calling embedding service at: {embedUrl}");
+                
                 var requestBody = new { text, max_length = 1024 };
                 var content = new StringContent(JsonSerializer.Serialize(requestBody), Encoding.UTF8, "application/json");
-                var response = await _httpClient.PostAsync(embedUrl, content);
+                
+                // Sử dụng HttpClient mới hoặc đảm bảo URL là absolute
+                HttpResponseMessage response;
+                if (_httpClient.BaseAddress == null && !Uri.IsWellFormedUriString(embedUrl, UriKind.Absolute))
+                {
+                    // Tạo HttpClient mới nếu cần
+                    using var client = new HttpClient();
+                    client.Timeout = TimeSpan.FromSeconds(30);
+                    response = await client.PostAsync(embedUrl, content);
+                }
+                else
+                {
+                    // URL đã là absolute, có thể dùng _httpClient
+                    response = await _httpClient.PostAsync(embedUrl, content);
+                }
+                
                 response.EnsureSuccessStatusCode();
                 
                 var json = await response.Content.ReadAsStringAsync();
@@ -207,11 +238,14 @@ namespace Application.Helper
                     throw new InvalidOperationException("Embedding service returned empty or null embedding");
                 }
                 
+                Console.WriteLine($"[QdrantHelper] Successfully generated embedding with dimension: {embedResponse.Embedding.Length}");
                 return embedResponse.Embedding;
             }
             catch (Exception ex)
             {
-                Console.WriteLine("Embedding error: " + ex.Message);
+                Console.WriteLine($"[QdrantHelper] Embedding error: {ex.Message}");
+                Console.WriteLine($"[QdrantHelper] StackTrace: {ex.StackTrace}");
+                // Fallback: return random vector
                 var rnd = new Random();
                 return Enumerable.Range(0, 384).Select(_ => (float)rnd.NextDouble()).ToArray();
             }

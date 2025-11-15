@@ -148,10 +148,37 @@ namespace Ai_Company.Controllers
             {
                 // Gọi embedding service trực tiếp từ configuration - không cần ONNX nữa
                 var tokenizerBaseUrl = _configuration["Tokenizer:BaseUrl"] ?? _configuration["TOKENIZER__BASE_URL"] ?? "http://localhost:8000";
+                
+                // Đảm bảo URL là absolute URL
+                if (string.IsNullOrWhiteSpace(tokenizerBaseUrl))
+                {
+                    throw new InvalidOperationException("Tokenizer BaseUrl is not configured");
+                }
+                
+                // Normalize URL - đảm bảo có scheme
+                if (!tokenizerBaseUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) && 
+                    !tokenizerBaseUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                {
+                    tokenizerBaseUrl = "https://" + tokenizerBaseUrl;
+                }
+                
                 var embedUrl = $"{tokenizerBaseUrl.TrimEnd('/')}/embed";
                 var requestBody = new { text, max_length = 128 };
                 var content = new StringContent(JsonSerializer.Serialize(requestBody), Encoding.UTF8, "application/json");
-                var response = await _httpClient.PostAsync(embedUrl, content);
+                
+                // Sử dụng HttpClient mới nếu cần (đảm bảo URL là absolute)
+                HttpResponseMessage response;
+                if (_httpClient.BaseAddress == null && !Uri.IsWellFormedUriString(embedUrl, UriKind.Absolute))
+                {
+                    using var client = new HttpClient();
+                    client.Timeout = TimeSpan.FromSeconds(30);
+                    response = await client.PostAsync(embedUrl, content);
+                }
+                else
+                {
+                    response = await _httpClient.PostAsync(embedUrl, content);
+                }
+                
                 response.EnsureSuccessStatusCode();
                 
                 var json = await response.Content.ReadAsStringAsync();
@@ -167,8 +194,9 @@ namespace Ai_Company.Controllers
                 
                 return embedResponse.Embedding;
             }
-            catch
+            catch (Exception ex)
             {
+                Console.WriteLine($"[RagTestController] Embedding error: {ex.Message}");
                 var rnd = new Random();
                 return Enumerable.Range(0, 384).Select(_ => (float)rnd.NextDouble()).ToArray();
             }
