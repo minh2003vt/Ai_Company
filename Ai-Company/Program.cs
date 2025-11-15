@@ -301,11 +301,9 @@ builder.Services.AddSwaggerGen(c =>
 var app = builder.Build();
 
 // 🔹 MIDDLEWARE PIPELINE - THỨ TỰ QUAN TRỌNG
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+// Bật Swagger cho cả Development và Production
+app.UseSwagger();
+app.UseSwaggerUI();
 
 // 🔹 CORS MIDDLEWARE - PHẢI ĐẶT TRƯỚC Authentication
 if (app.Environment.IsDevelopment())
