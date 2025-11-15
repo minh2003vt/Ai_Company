@@ -122,18 +122,25 @@ builder.Services.AddScoped<FirebaseService>();
 builder.Services.AddSingleton(provider =>
 {
     var config = provider.GetRequiredService<IConfiguration>();
-    var firebaseKeyPath = config["Firebase:CredentialPath"] ?? config["FIREBASE__CREDENTIAL_PATH"];
-    var projectId = config["Firebase:ProjectId"] ?? config["FIREBASE__PROJECT_ID"];
+    
+    // Ưu tiên đọc từ environment variables (Render format: FIREBASE__CREDENTIAL_PATH)
+    // Sau đó mới fallback về appsettings (Firebase:CredentialPath)
+    var firebaseKeyPath = Environment.GetEnvironmentVariable("FIREBASE__CREDENTIAL_PATH") 
+        ?? config["FIREBASE__CREDENTIAL_PATH"] 
+        ?? config["Firebase:CredentialPath"];
+    
+    var projectId = Environment.GetEnvironmentVariable("FIREBASE__PROJECT_ID") 
+        ?? config["FIREBASE__PROJECT_ID"] 
+        ?? config["Firebase:ProjectId"];
 
-    if (string.IsNullOrEmpty(firebaseKeyPath))
+    Console.WriteLine($"[Firebase Init] FIREBASE__CREDENTIAL_PATH env var: {Environment.GetEnvironmentVariable("FIREBASE__CREDENTIAL_PATH")}");
+    Console.WriteLine($"[Firebase Init] Config FIREBASE__CREDENTIAL_PATH: {config["FIREBASE__CREDENTIAL_PATH"]}");
+    Console.WriteLine($"[Firebase Init] Config Firebase:CredentialPath: {config["Firebase:CredentialPath"]}");
+    Console.WriteLine($"[Firebase Init] Resolved firebaseKeyPath: {firebaseKeyPath}");
+
+    if (string.IsNullOrEmpty(firebaseKeyPath) || string.IsNullOrEmpty(projectId))
     {
-        var errorMsg = "Firebase configuration is missing! Please set FIREBASE__CREDENTIAL_PATH";
-        Console.WriteLine($"ERROR: {errorMsg}");
-        throw new InvalidOperationException(errorMsg);
-    }
-    if ( string.IsNullOrEmpty(projectId))
-    {
-        var errorMsg = "Firebase configuration is missing! Please set FIREBASE__PROJECT_ID";
+        var errorMsg = "Firebase configuration is missing! Please set FIREBASE__CREDENTIAL_PATH and FIREBASE__PROJECT_ID environment variables (with double underscore __). After adding Secret Files on Render, you MUST redeploy by clicking 'Deploy latest commit'.";
         Console.WriteLine($"ERROR: {errorMsg}");
         throw new InvalidOperationException(errorMsg);
     }
@@ -145,16 +152,36 @@ builder.Services.AddSingleton(provider =>
         // Đường dẫn tương đối - tìm từ thư mục gốc của ứng dụng
         var baseDirectory = AppContext.BaseDirectory;
         resolvedPath = Path.Combine(baseDirectory, firebaseKeyPath);
+        Console.WriteLine($"[Firebase Init] Trying path 1: {resolvedPath} (exists: {File.Exists(resolvedPath)})");
         
         // Nếu không tìm thấy, thử từ thư mục hiện tại
         if (!File.Exists(resolvedPath))
         {
             resolvedPath = Path.Combine(Directory.GetCurrentDirectory(), firebaseKeyPath);
+            Console.WriteLine($"[Firebase Init] Trying path 2: {resolvedPath} (exists: {File.Exists(resolvedPath)})");
         }
+        
+        // Trên Render, file có thể ở root của app
+        if (!File.Exists(resolvedPath))
+        {
+            resolvedPath = Path.Combine("/app", firebaseKeyPath);
+            Console.WriteLine($"[Firebase Init] Trying path 3: {resolvedPath} (exists: {File.Exists(resolvedPath)})");
+        }
+    }
+    else
+    {
+        Console.WriteLine($"[Firebase Init] Using absolute path: {resolvedPath} (exists: {File.Exists(resolvedPath)})");
     }
 
     if (!File.Exists(resolvedPath))
-        throw new FileNotFoundException($"Firebase credential file not found: {resolvedPath}");
+    {
+        var errorMsg = $"Firebase credential file not found at: {resolvedPath}. " +
+                       $"Please check: 1) File name is correct, 2) Secret File is added on Render, 3) You clicked 'Deploy latest commit' after adding the file.";
+        Console.WriteLine($"ERROR: {errorMsg}");
+        throw new FileNotFoundException(errorMsg);
+    }
+    
+    Console.WriteLine($"[Firebase Init] Successfully found credential file at: {resolvedPath}");
 
     // Load Google credentials from file
     GoogleCredential credential = GoogleCredential.FromFile(resolvedPath);
