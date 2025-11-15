@@ -147,12 +147,18 @@ namespace Ai_Company.Controllers
             try
             {
                 // Gọi embedding service trực tiếp từ configuration - không cần ONNX nữa
-                var tokenizerBaseUrl = _configuration["Tokenizer:BaseUrl"] ?? _configuration["TOKENIZER__BASE_URL"] ?? "http://localhost:8000";
+                // Ưu tiên đọc từ environment variable (Render format)
+                var tokenizerBaseUrl = System.Environment.GetEnvironmentVariable("TOKENIZER__BASE_URL")
+                    ?? _configuration["TOKENIZER__BASE_URL"]
+                    ?? _configuration["Tokenizer:BaseUrl"]
+                    ?? "http://localhost:8000";
                 
                 // Đảm bảo URL là absolute URL
-                if (string.IsNullOrWhiteSpace(tokenizerBaseUrl))
+                if (string.IsNullOrWhiteSpace(tokenizerBaseUrl) || tokenizerBaseUrl == "http://localhost:8000")
                 {
-                    throw new InvalidOperationException("Tokenizer BaseUrl is not configured");
+                    var errorMsg = "Tokenizer BaseUrl is not configured! Please set TOKENIZER__BASE_URL environment variable (with double underscore __)";
+                    Console.WriteLine($"ERROR: {errorMsg}");
+                    throw new InvalidOperationException(errorMsg);
                 }
                 
                 // Normalize URL - đảm bảo có scheme

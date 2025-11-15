@@ -14,12 +14,23 @@ namespace Application.Service
 {
     public class QdrantService
     {
-        private readonly HttpClient _httpClient;
+        private readonly    HttpClient _httpClient;
         private readonly string _baseUrl;
         private readonly IUnitOfWork _unitofwork;
         public QdrantService(IUnitOfWork unitOfWork, HttpClient httpClient, IConfiguration configuration)
         {
-            _baseUrl = (configuration["Qdrant:BaseUrl"] ?? configuration["QDRANT__BASE_URL"] ?? "http://localhost:6333").TrimEnd('/');
+            // Ưu tiên đọc từ environment variable (Render format)
+            var qdrantBaseUrl = System.Environment.GetEnvironmentVariable("QDRANT__BASE_URL")
+                ?? configuration["QDRANT__BASE_URL"]
+                ?? configuration["Qdrant:BaseUrl"]
+                ?? "http://localhost:6333";
+            
+            Console.WriteLine($"[QdrantService] QDRANT__BASE_URL env var: {System.Environment.GetEnvironmentVariable("QDRANT__BASE_URL")}");
+            Console.WriteLine($"[QdrantService] Config QDRANT__BASE_URL: {configuration["QDRANT__BASE_URL"]}");
+            Console.WriteLine($"[QdrantService] Config Qdrant:BaseUrl: {configuration["Qdrant:BaseUrl"]}");
+            Console.WriteLine($"[QdrantService] Resolved qdrantBaseUrl: {qdrantBaseUrl}");
+            
+            _baseUrl = qdrantBaseUrl.TrimEnd('/');
             _httpClient = httpClient;
             _unitofwork = unitOfWork;
         }
