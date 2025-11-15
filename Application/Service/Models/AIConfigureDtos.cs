@@ -24,6 +24,10 @@ namespace Application.Service.Models
 
         public float? TopP { get; set; }
         public int? TopK { get; set; }
+
+        // Password khi tạo mới (6 số) - chỉ bắt buộc khi Create
+        [RegularExpression(@"^\d{6}$", ErrorMessage = "Mật khẩu phải là 6 chữ số")]
+        public string? Password { get; set; }
     }
 
     public class AIModelConfigResponseDto
@@ -47,12 +51,6 @@ namespace Application.Service.Models
         [MinLength(6, ErrorMessage = "Mật khẩu phải 6 ký tự")]
         [MaxLength(6, ErrorMessage = "Mật khẩu phải 6 ký tự")]
         public string NewPassword { get; set; }
-    }
-
-    public class GetModelConfigByIdDto
-    {
-        [Required(ErrorMessage = "Mật khẩu là bắt buộc")]
-        public string Password { get; set; }
     }
 
     public class ModelConfigApiKeyResponseDto

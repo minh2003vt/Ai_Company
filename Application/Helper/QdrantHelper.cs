@@ -189,7 +189,7 @@ namespace Application.Helper
             try
             {
                 // Gọi embedding service trực tiếp từ configuration - không cần ONNX nữa
-                var tokenizerBaseUrl = _configuration["Tokenizer:BaseUrl"] ?? "http://localhost:8000";
+                var tokenizerBaseUrl = _configuration["Tokenizer:BaseUrl"] ?? _configuration["TOKENIZER__BASE_URL"] ?? "http://localhost:8000";
                 var embedUrl = $"{tokenizerBaseUrl.TrimEnd('/')}/embed";
                 var requestBody = new { text, max_length = 1024 };
                 var content = new StringContent(JsonSerializer.Serialize(requestBody), Encoding.UTF8, "application/json");

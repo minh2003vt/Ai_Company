@@ -19,7 +19,7 @@ namespace Application.Service
         private readonly IUnitOfWork _unitofwork;
         public QdrantService(IUnitOfWork unitOfWork, HttpClient httpClient, IConfiguration configuration)
         {
-            _baseUrl = (configuration["Qdrant:BaseUrl"] ?? "http://localhost:6333").TrimEnd('/');
+            _baseUrl = (configuration["Qdrant:BaseUrl"] ?? configuration["QDRANT__BASE_URL"] ?? "http://localhost:6333").TrimEnd('/');
             _httpClient = httpClient;
             _unitofwork = unitOfWork;
         }

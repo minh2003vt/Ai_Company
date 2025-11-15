@@ -23,6 +23,12 @@ namespace Application.Service
         {
             try
             {
+                // Validate password (6 digits)
+                if (string.IsNullOrWhiteSpace(dto.Password) || !System.Text.RegularExpressions.Regex.IsMatch(dto.Password, @"^\d{6}$"))
+                {
+                    return ApiResponse<AIModelConfigResponseDto>.Fail(null, "Mật khẩu phải là 6 chữ số");
+                }
+
                 var modelConfig = new AIModelConfig
                 {
                     ModelName = dto.ModelName,
@@ -31,8 +37,8 @@ namespace Application.Service
                     UseStreaming = dto.UseStreaming,
                     ApiKey = dto.ApiKey ?? "", // Có thể set khi tạo, hoặc để trống và set sau
                     TopP = dto.TopP,
-                    TopK = dto.TopK
-                    // Password sẽ được set sau bằng hàm change password riêng
+                    TopK = dto.TopK,
+                    PasswordHash = PasswordHasher.HashPassword(dto.Password) // Hash password khi tạo
                 };
 
                 await _unitOfWork.AIModelConfigs.AddAsync(modelConfig);
@@ -59,30 +65,17 @@ namespace Application.Service
             }
         }
 
-        public async Task<ApiResponse<AIModelConfigResponseDto>> GetByIdAsync(Guid id, string password)
+        public async Task<ApiResponse<AIModelConfigResponseDto>> GetByIdAsync(Guid id)
         {
             try
             {
-                if (string.IsNullOrWhiteSpace(password))
-                {
-                    return ApiResponse<AIModelConfigResponseDto>.Fail(null, "Mật khẩu là bắt buộc");
-                }
-
                 var modelConfig = await _unitOfWork.AIModelConfigs.GetByIdAsync(id);
                 if (modelConfig == null)
                 {
                     return ApiResponse<AIModelConfigResponseDto>.Fail(null, "Không tìm thấy ModelConfig");
                 }
 
-                // Verify password if PasswordHash exists
-                if (!string.IsNullOrWhiteSpace(modelConfig.PasswordHash))
-                {
-                    if (!PasswordHasher.VerifyPassword(password, modelConfig.PasswordHash))
-                    {
-                        return ApiResponse<AIModelConfigResponseDto>.Fail(null, "Mật khẩu không đúng");
-                    }
-                }
-
+                // Không cần password để xem thông tin, chỉ cần để xem ApiKey
                 var response = new AIModelConfigResponseDto
                 {
                     Id = modelConfig.Id,
@@ -311,11 +304,8 @@ namespace Application.Service
                     return ApiResponse<bool>.Fail(false, "Không tìm thấy ModelConfig");
                 }
 
-                // Find the currently active model BEFORE we change anything
+                // Set all models to inactive first (chỉ có 1 model active at a time)
                 var allModels = await _unitOfWork.AIModelConfigs.GetAllAsync();
-                var previouslyActiveModel = allModels.FirstOrDefault(m => m.Active == true && m.Id != id);
-
-                // Set all models to inactive first
                 foreach (var model in allModels)
                 {
                     if (model.Active)
@@ -331,24 +321,18 @@ namespace Application.Service
                 modelConfig.UpdatedAt = DateTime.UtcNow.AddHours(7);
                 _unitOfWork.AIModelConfigs.Update(modelConfig);
 
-                // Update all AI_Configure that were using the previously active model to use the new active model
-                if (previouslyActiveModel != null)
+                // Update TẤT CẢ AI_Configure hiện tại sang model active mới
+                var allAIConfigures = await _unitOfWork.AIConfigures.GetAllAsync();
+                foreach (var aiConfigure in allAIConfigures)
                 {
-                    var allAIConfigures = await _unitOfWork.AIConfigures.GetAllAsync();
-                    foreach (var aiConfigure in allAIConfigures)
-                    {
-                        if (aiConfigure.ModelConfigId == previouslyActiveModel.Id)
-                        {
-                            // Update to use the new active model
-                            aiConfigure.ModelConfigId = id;
-                            _unitOfWork.AIConfigures.Update(aiConfigure);
-                        }
-                    }
+                    // Cập nhật tất cả AI_Configure sang model active mới
+                    aiConfigure.ModelConfigId = id;
+                    _unitOfWork.AIConfigures.Update(aiConfigure);
                 }
 
                 await _unitOfWork.SaveChangesAsync();
 
-                return ApiResponse<bool>.Ok(true, "Đã chuyển model active thành công và cập nhật tất cả AI_Configure");
+                return ApiResponse<bool>.Ok(true, "Đã chuyển model active thành công và cập nhật tất cả AI_Configure sang model mới");
             }
             catch (Exception ex)
             {

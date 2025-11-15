@@ -42,18 +42,12 @@ namespace Ai_Company.Controllers
             }
         }
 
-        [HttpPost("{id}")]
-        public async Task<IActionResult> GetById(Guid id, [FromBody] GetModelConfigByIdDto dto)
+        [HttpGet("{id}")]
+        public async Task<IActionResult> GetById(Guid id)
         {
             try
             {
-                if (!ModelState.IsValid)
-                {
-                    var firstError = ModelState.Values.SelectMany(v => v.Errors).FirstOrDefault()?.ErrorMessage ?? "Dữ liệu không hợp lệ";
-                    return BadRequest(ApiResponse<object>.Fail(null, firstError));
-                }
-
-                var result = await _service.GetByIdAsync(id, dto.Password);
+                var result = await _service.GetByIdAsync(id);
                 if (!result.Success)
                 {
                     return NotFound(result);

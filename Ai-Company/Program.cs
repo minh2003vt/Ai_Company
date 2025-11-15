@@ -40,10 +40,21 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddHttpClient();
 // Configure GeminiOptions - IOptionsSnapshot will reload on each request
-builder.Services.Configure<GeminiOptions>(
-    builder.Configuration.GetSection("Gemini"));
-builder.Services.Configure<EmailOptions>(
-    builder.Configuration.GetSection("Email"));
+// Note: Validation happens at service usage time, not at startup
+builder.Services.Configure<GeminiOptions>(options =>
+{
+    options.ApiKey = builder.Configuration["Gemini:ApiKey"] ?? builder.Configuration["GEMINI__API_KEY"] ?? "";
+});
+builder.Services.Configure<EmailOptions>(options =>
+{
+    options.Host = builder.Configuration["Email:Host"] ?? builder.Configuration["EMAIL__HOST"] ?? "";
+    options.Port = int.TryParse(builder.Configuration["Email:Port"] ?? builder.Configuration["EMAIL__PORT"], out var port) ? port : 587;
+    options.EnableSsl = bool.TryParse(builder.Configuration["Email:EnableSsl"] ?? builder.Configuration["EMAIL__ENABLE_SSL"], out var ssl) ? ssl : true;
+    options.UserName = builder.Configuration["Email:UserName"] ?? builder.Configuration["EMAIL__USER"] ?? "";
+    options.Password = builder.Configuration["Email:Password"] ?? builder.Configuration["EMAIL__PASS"] ?? "";
+    options.FromAddress = builder.Configuration["Email:FromAddress"] ?? builder.Configuration["EMAIL__FROM_ADDRESS"] ?? "";
+    options.FromName = builder.Configuration["Email:FromName"] ?? builder.Configuration["EMAIL__FROM_NAME"] ?? "";
+});
 
 // 🔹 CORS Configuration - THÊM VÀO ĐÂY
 builder.Services.AddCors(options =>
@@ -111,11 +122,15 @@ builder.Services.AddScoped<FirebaseService>();
 builder.Services.AddSingleton(provider =>
 {
     var config = provider.GetRequiredService<IConfiguration>();
-    var firebaseKeyPath = config["Firebase:CredentialPath"];
-    var projectId = config["Firebase:ProjectId"];
+    var firebaseKeyPath = config["Firebase:CredentialPath"] ?? config["FIREBASE__CREDENTIAL_PATH"];
+    var projectId = config["Firebase:ProjectId"] ?? config["FIREBASE__PROJECT_ID"];
 
     if (string.IsNullOrEmpty(firebaseKeyPath) || string.IsNullOrEmpty(projectId))
-        throw new InvalidOperationException("Firebase configuration is missing!");
+    {
+        var errorMsg = "Firebase configuration is missing! Please set FIREBASE__CREDENTIAL_PATH and FIREBASE__PROJECT_ID environment variables or Firebase:CredentialPath and Firebase:ProjectId in appsettings.json";
+        Console.WriteLine($"ERROR: {errorMsg}");
+        throw new InvalidOperationException(errorMsg);
+    }
 
     // Resolve đường dẫn: nếu là đường dẫn tương đối, tìm từ thư mục gốc của ứng dụng
     string resolvedPath = firebaseKeyPath;
@@ -194,16 +209,41 @@ builder.Services.AddScoped<IKnowledgeSourceService, KnowledgeSourceService>();
 builder.Services.AddScoped<IAIModelConfigService, AIModelConfigService>();
 
 // 🔹 JWT Authentication
-var jwtKey = builder.Configuration["Jwt:Key"];
-var issuer = builder.Configuration["Jwt:Issuer"];
-var audience = builder.Configuration["Jwt:Audience"];
+var jwtKey = builder.Configuration["Jwt:Key"] ?? builder.Configuration["JWT__KEY"];
+var issuer = builder.Configuration["Jwt:Issuer"] ?? builder.Configuration["JWT__ISSUER"];
+var audience = builder.Configuration["Jwt:Audience"] ?? builder.Configuration["JWT__AUDIENCE"];
 
+// Validate JWT configuration - required for production
 if (string.IsNullOrWhiteSpace(jwtKey))
 {
-    Console.WriteLine("Jwt:Key not set. Set appsettings or env JWT__KEY before running in production.");
+    var errorMsg = "JWT Key is not configured. Please set JWT__KEY environment variable or Jwt:Key in appsettings.json";
+    Console.WriteLine($"ERROR: {errorMsg}");
+    throw new InvalidOperationException(errorMsg);
 }
 
-var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey ?? "development-only-key-change-me"));
+if (string.IsNullOrWhiteSpace(issuer))
+{
+    var errorMsg = "JWT Issuer is not configured. Please set JWT__ISSUER environment variable or Jwt:Issuer in appsettings.json";
+    Console.WriteLine($"ERROR: {errorMsg}");
+    throw new InvalidOperationException(errorMsg);
+}
+
+if (string.IsNullOrWhiteSpace(audience))
+{
+    var errorMsg = "JWT Audience is not configured. Please set JWT__AUDIENCE environment variable or Jwt:Audience in appsettings.json";
+    Console.WriteLine($"ERROR: {errorMsg}");
+    throw new InvalidOperationException(errorMsg);
+}
+
+// Validate key length (must be at least 32 characters for HS256)
+if (jwtKey.Length < 32)
+{
+    var errorMsg = "JWT Key must be at least 32 characters long for security";
+    Console.WriteLine($"ERROR: {errorMsg}");
+    throw new InvalidOperationException(errorMsg);
+}
+
+var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
 
 builder.Services.AddAuthentication(options =>
 {
