@@ -27,16 +27,35 @@ namespace Application.Service
 
         private async Task<bool> IsSystemAdminAsync(Guid userId)
         {
-            var userDepartments = await _unitOfWork.UserDepartments.FindAsync(ud => ud.UserId == userId);
-            foreach (var ud in userDepartments)
+            try
             {
-                var role = await _unitOfWork.Roles.GetByIdAsync(ud.RoleId);
-                if (role != null && string.Equals(role.Name, "SystemAdmin", StringComparison.OrdinalIgnoreCase))
+                var userDepartments = await _unitOfWork.UserDepartments.FindAsync(ud => ud.UserId == userId);
+                if (userDepartments == null || !userDepartments.Any())
                 {
-                    return true;
+                    return false;
                 }
+                
+                foreach (var ud in userDepartments)
+                {
+                    if (ud.RoleId == Guid.Empty)
+                    {
+                        continue;
+                    }
+                    
+                    var role = await _unitOfWork.Roles.GetByIdAsync(ud.RoleId);
+                    if (role != null && string.Equals(role.Name, "SystemAdmin", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return true;
+                    }
+                }
+                return false;
             }
-            return false;
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[IsSystemAdminAsync] Error checking SystemAdmin role for user {userId}: {ex.Message}");
+                // Return false on error to avoid blocking the request
+                return false;
+            }
         }
 
         public async Task<ApiResponse<AIConfigureDetailResponseDto>> CreateAsync(AIConfigureDto dto, Guid userId)
@@ -311,27 +330,37 @@ namespace Application.Service
                 // Nếu có userId, check role và filter
                 if (userId.HasValue)
                 {
-                    var isSystemAdmin = await IsSystemAdminAsync(userId.Value);
-                    // Nếu là SystemAdmin, chỉ lấy Kind = Global (0)
-                    if (isSystemAdmin)
+                    try
                     {
-                        aiConfigures = await _unitOfWork.AIConfigures.FindAsync(a => a.Kind == Domain.Entitites.Enums.AI_ConfigureKind.Global);
-                    }
-                    else
-                    {
-                        // Không phải SystemAdmin, chỉ lấy Kind = Company và cùng CompanyId với user
-                        var user = await _unitOfWork.Users.GetByIdAsync(userId.Value);
-                        if (user != null && user.CompanyId.HasValue)
+                        var isSystemAdmin = await IsSystemAdminAsync(userId.Value);
+                        // Nếu là SystemAdmin, chỉ lấy Kind = Global (0)
+                        if (isSystemAdmin)
                         {
-                            aiConfigures = await _unitOfWork.AIConfigures.FindAsync(a => 
-                                a.Kind == Domain.Entitites.Enums.AI_ConfigureKind.Company && 
-                                a.CompanyId == user.CompanyId.Value);
+                            aiConfigures = await _unitOfWork.AIConfigures.FindAsync(a => a.Kind == Domain.Entitites.Enums.AI_ConfigureKind.Global);
                         }
                         else
                         {
-                            // User không có CompanyId, không có AI_Configure nào
-                            aiConfigures = new List<AI_Configure>();
+                            // Không phải SystemAdmin, chỉ lấy Kind = Company và cùng CompanyId với user
+                            var user = await _unitOfWork.Users.GetByIdAsync(userId.Value);
+                            if (user != null && user.CompanyId.HasValue)
+                            {
+                                aiConfigures = await _unitOfWork.AIConfigures.FindAsync(a => 
+                                    a.Kind == Domain.Entitites.Enums.AI_ConfigureKind.Company && 
+                                    a.CompanyId == user.CompanyId.Value);
+                            }
+                            else
+                            {
+                                // User không có CompanyId, không có AI_Configure nào
+                                aiConfigures = new List<AI_Configure>();
+                            }
                         }
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[GetAllAsync] Error checking user role: {ex.Message}");
+                        Console.WriteLine($"[GetAllAsync] StackTrace: {ex.StackTrace}");
+                        // Fallback: return empty list if role check fails
+                        aiConfigures = new List<AI_Configure>();
                     }
                 }
                 else
@@ -343,21 +372,36 @@ namespace Application.Service
 
                 foreach (var config in aiConfigures)
                 {
-                    var createdBy = await _unitOfWork.Users.GetByIdAsync(config.CreatedByUserId);
-                    var dto = new AIConfigureResponseDto
+                    try
                     {
-                        Id = config.Id,
-                        Name = config.Name,
-                        Description = config.Description,
-                        CurrentVersion = config.CurrentVersion
-                    };
-                    response.Add(dto);
+                        // Không cần load CreatedBy nếu không dùng trong response
+                        var dto = new AIConfigureResponseDto
+                        {
+                            Id = config.Id,
+                            Name = config.Name ?? "",
+                            Description = config.Description ?? "",
+                            CurrentVersion = config.CurrentVersion
+                        };
+                        response.Add(dto);
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[GetAllAsync] Error processing config {config.Id}: {ex.Message}");
+                        // Skip this config and continue
+                        continue;
+                    }
                 }
 
                 return ApiResponse<IEnumerable<AIConfigureResponseDto>>.Ok(response, "Lấy danh sách cấu hình AI thành công");
             }
             catch (Exception ex)
             {
+                Console.WriteLine($"[GetAllAsync] Fatal error: {ex.Message}");
+                Console.WriteLine($"[GetAllAsync] StackTrace: {ex.StackTrace}");
+                if (ex.InnerException != null)
+                {
+                    Console.WriteLine($"[GetAllAsync] InnerException: {ex.InnerException.Message}");
+                }
                 return ApiResponse<IEnumerable<AIConfigureResponseDto>>.Fail(null, $"Lỗi khi lấy danh sách cấu hình AI: {ex.Message}");
             }
         }

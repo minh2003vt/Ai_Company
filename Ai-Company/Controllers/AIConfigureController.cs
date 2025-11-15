@@ -212,9 +212,15 @@ namespace Ai_Company.Controllers
                 var result = await _aiConfigureService.GetAllAsync(userId);
                 return Ok(result);
             }
-            catch
+            catch (Exception ex)
             {
-                return StatusCode(500, ApiResponse<object>.Fail(null, "Có lỗi xảy ra, vui lòng thử lại."));
+                Console.WriteLine($"[AIConfigureController.GetAll] Exception: {ex.Message}");
+                Console.WriteLine($"[AIConfigureController.GetAll] StackTrace: {ex.StackTrace}");
+                if (ex.InnerException != null)
+                {
+                    Console.WriteLine($"[AIConfigureController.GetAll] InnerException: {ex.InnerException.Message}");
+                }
+                return StatusCode(500, ApiResponse<object>.Fail(null, $"Có lỗi xảy ra: {ex.Message}"));
             }
         }
 
