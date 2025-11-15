@@ -347,9 +347,12 @@ MigrationBackup/
 FodyWeavers.xsd
 
 # Sensitive files - Firebase credentials
-# **/*firebase*.json
-# **/*-firebase-adminsdk-*.json
-# Note: Firebase credentials file is now tracked in git (using environment variables for actual values)
+**/*firebase*.json
+**/*-firebase-adminsdk-*.json
+ai-company-configure-firebase-adminsdk-fbsvc-7037480c2a.json
+
+# AppSettings with sensitive data
+appsettings.Development.json
 
 # Environment files
 .env
